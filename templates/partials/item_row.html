@@ -1,0 +1,33 @@
+<tr id="item-row-{{ item.id }}">
+    <td>
+        {% if item.status == 'active' %}
+        <span class="status-dot status-active" title="Active"></span>
+        {% elif item.status == 'paused' %}
+        <span class="status-dot status-paused" title="Paused"></span>
+        {% else %}
+        <span class="status-dot status-draft" title="Draft"></span>
+        {% endif %}
+    </td>
+    <td><a href="{{ url_for('items.item_edit', item_id=item.id) }}">{{ item.name }}</a></td>
+    <td><small>{{ item.url[:50] }}{% if item.url|length > 50 %}...{% endif %}</small></td>
+    <td><small>{{ item.last_checked_at or 'Never' }}</small></td>
+    <td>
+        <div class="action-buttons">
+            {% if item.status != 'draft' %}
+            <button class="outline secondary action-btn"
+                    hx-post="{{ url_for('items.item_toggle', item_id=item.id) }}"
+                    hx-target="#item-row-{{ item.id }}"
+                    hx-swap="outerHTML">
+                {{ 'Pause' if item.status == 'active' else 'Start' }}
+            </button>
+            <button class="outline action-btn"
+                    hx-post="{{ url_for('items.item_run', item_id=item.id) }}"
+                    hx-target="#item-row-{{ item.id }}"
+                    hx-swap="outerHTML">
+                Run
+            </button>
+            {% endif %}
+            <a href="{{ url_for('items.item_edit', item_id=item.id) }}" class="outline action-btn" role="button">Edit</a>
+        </div>
+    </td>
+</tr>

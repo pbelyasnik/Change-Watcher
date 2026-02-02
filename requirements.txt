@@ -1,0 +1,8 @@
+flask
+httpx
+beautifulsoup4
+cssselect
+lxml
+jsonpath-ng
+apscheduler
+python-dotenv

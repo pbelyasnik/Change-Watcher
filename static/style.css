@@ -1,0 +1,48 @@
+.status-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.status-active {
+    background-color: #2ecc40;
+}
+
+.status-paused {
+    background-color: #ffdc00;
+}
+
+.status-draft {
+    background-color: #adb5bd;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 0.25rem;
+    flex-wrap: nowrap;
+}
+
+.action-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.85rem;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.flash-success {
+    border-left: 4px solid #2ecc40;
+    padding: 0.5rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.flash-error {
+    border-left: 4px solid #ff4136;
+    padding: 0.5rem 1rem;
+    margin-bottom: 1rem;
+}
+
+#test-result pre {
+    white-space: pre-wrap;
+    word-break: break-all;
+}

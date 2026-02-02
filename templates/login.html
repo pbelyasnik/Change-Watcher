@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Login — Change Watcher{% endblock %}
+
+{% block content %}
+<article style="max-width: 400px; margin: 2rem auto;">
+    <header>
+        <h2>Login</h2>
+    </header>
+    <form method="post" action="{{ url_for('auth.login') }}">
+        <label for="code">Access Code</label>
+        <input type="password" id="code" name="code" placeholder="Enter your access code" required autofocus>
+        <button type="submit">Login</button>
+    </form>
+</article>
+{% endblock %}

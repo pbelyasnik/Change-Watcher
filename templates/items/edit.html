@@ -1,0 +1,407 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if item else 'New' }} Item — Change Watcher{% endblock %}
+
+{% block content %}
+{% set headers_json = item.headers if item and item.headers else '{}' %}
+{% set notif_config_json = item.notification_config if item and item.notification_config else '{}' %}
+
+<h2>{{ 'Edit' if item else 'New' }} Watch Item</h2>
+
+<form method="post"
+      action="{{ url_for('items.item_edit', item_id=item.id) if item else url_for('items.item_new') }}"
+      id="item-form">
+
+    <!-- Name & Interval -->
+    <div class="grid">
+        <label>
+            Name
+            <input type="text" name="name" value="{{ item.name if item else '' }}" required
+                   placeholder="My price checker">
+        </label>
+        <label>
+            Check interval (minutes)
+            <input type="number" name="interval_minutes" min="1"
+                   value="{{ item.interval_minutes if item else 5 }}">
+        </label>
+    </div>
+
+    <!-- Check Type -->
+    <fieldset>
+        <legend>Check Type</legend>
+        <div class="grid">
+            <label>
+                <input type="radio" name="check_type" value="html"
+                       {{ 'checked' if not item or item.check_type == 'html' }}
+                       onchange="updateSelectorOptions()">
+                HTML page
+            </label>
+            <label>
+                <input type="radio" name="check_type" value="api"
+                       {{ 'checked' if item and item.check_type == 'api' }}
+                       onchange="updateSelectorOptions()">
+                API request
+            </label>
+        </div>
+    </fieldset>
+
+    <!-- Request Configuration -->
+    <fieldset>
+        <legend>Request Configuration</legend>
+
+        <div class="grid">
+            <label>
+                URL
+                <input type="url" name="url" value="{{ item.url if item else '' }}" required
+                       placeholder="https://example.com/page">
+            </label>
+            <label>
+                Method
+                <select name="method" id="method-select" onchange="toggleBodyField()">
+                    {% for m in ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] %}
+                    <option value="{{ m }}" {{ 'selected' if item and item.method == m }}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+        </div>
+
+        <!-- Headers -->
+        <details>
+            <summary>Headers</summary>
+            <div id="headers-container">
+                <!-- Populated by JS -->
+            </div>
+            <button type="button" class="outline secondary" onclick="addHeaderRow('', '')">
+                + Add header
+            </button>
+        </details>
+
+        <!-- Body -->
+        <div id="body-field" style="display: none;">
+            <label>
+                Request Body
+                <textarea name="body" rows="4" placeholder='{"key": "value"}'>{{ item.body if item else '' }}</textarea>
+            </label>
+        </div>
+
+        <!-- cURL Import -->
+        <details>
+            <summary>Import from cURL</summary>
+            <label>
+                Paste cURL command
+                <textarea id="curl-input" rows="3" placeholder='curl -X GET "https://api.example.com/data" -H "Authorization: Bearer token"'></textarea>
+            </label>
+            <button type="button" class="outline" onclick="importCurl()">Import</button>
+        </details>
+    </fieldset>
+
+    <!-- Selector -->
+    <fieldset>
+        <legend>Value Selector</legend>
+        <div id="selector-options">
+            <!-- Populated by JS based on check_type -->
+        </div>
+        <label>
+            Selector expression
+            <input type="text" name="selector" id="selector-input"
+                   value="{{ item.selector if item else '' }}"
+                   placeholder="e.g. .price, $.data.value, or regex pattern">
+        </label>
+    </fieldset>
+
+    <!-- Test Request -->
+    <fieldset>
+        <legend>Test</legend>
+        <div class="grid">
+            <button type="button" class="outline" id="test-request-btn" onclick="testRequest()">
+                Test request
+            </button>
+        </div>
+        <div id="test-result" style="display: none;">
+            <article id="test-result-content"></article>
+        </div>
+    </fieldset>
+
+    <!-- Notification -->
+    <fieldset>
+        <legend>Notification</legend>
+        <label>
+            Type
+            <select name="notification_type" id="notification-type">
+                <option value="telegram" selected>Telegram</option>
+            </select>
+        </label>
+        <div id="telegram-config">
+            <label>
+                Telegram Chat ID
+                <input type="text" name="chat_id" id="chat-id-input"
+                       value="{{ (notif_config_json | parse_json).get('chat_id', '') if item else '' }}"
+                       placeholder="e.g. 123456789 or -100123456789">
+            </label>
+        </div>
+        <button type="button" class="outline secondary" onclick="testNotification()">
+            Test notification
+        </button>
+        <div id="notification-result" style="display: none;">
+            <small id="notification-result-content"></small>
+        </div>
+    </fieldset>
+
+    <!-- Message Template -->
+    <fieldset>
+        <legend>Message Template</legend>
+        <small>
+            Available tags: <code>{name}</code>, <code>{old_value}</code>,
+            <code>{new_value}</code>, <code>{url}</code>, <code>{timestamp}</code>
+        </small>
+        <textarea name="message_template" rows="5"
+                  placeholder="🔔 {name}&#10;&#10;Value changed!&#10;Old: {old_value}&#10;New: {new_value}&#10;&#10;URL: {url}&#10;Time: {timestamp}">{{ item.message_template if item else '' }}</textarea>
+    </fieldset>
+
+    <!-- Hidden field for current_value (set by test request) -->
+    <input type="hidden" name="current_value" id="current-value-input"
+           value="{{ item.current_value if item else '' }}">
+
+    <!-- Action Buttons -->
+    <div class="grid">
+        <a href="{{ url_for('items.item_list') }}" role="button" class="outline secondary">Discard</a>
+        <button type="submit" name="action" value="save" id="save-btn"
+                {{ 'disabled' if not item else '' }}>Save</button>
+        <button type="submit" name="action" value="activate" id="activate-btn"
+                {{ 'disabled' if not item else '' }}>Save &amp; Activate</button>
+    </div>
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// --- Parse headers from server ---
+const existingHeaders = {{ headers_json | safe }};
+
+// --- Init ---
+document.addEventListener('DOMContentLoaded', function() {
+    updateSelectorOptions();
+    toggleBodyField();
+    loadHeaders();
+    {% if item %}
+    enableButtons();
+    {% endif %}
+});
+
+function loadHeaders() {
+    let headers;
+    try {
+        headers = typeof existingHeaders === 'string' ? JSON.parse(existingHeaders) : existingHeaders;
+    } catch(e) {
+        headers = {};
+    }
+    const entries = Object.entries(headers);
+    if (entries.length === 0) {
+        addHeaderRow('', '');
+    } else {
+        entries.forEach(([k, v]) => addHeaderRow(k, v));
+    }
+}
+
+function addHeaderRow(key, value) {
+    const container = document.getElementById('headers-container');
+    const row = document.createElement('div');
+    row.className = 'grid';
+    row.innerHTML = `
+        <input type="text" name="header_key" value="${escapeHtml(key)}" placeholder="Header name">
+        <input type="text" name="header_value" value="${escapeHtml(value)}" placeholder="Header value">
+        <button type="button" class="outline secondary" onclick="this.parentElement.remove()" style="max-width:60px">-</button>
+    `;
+    container.appendChild(row);
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML.replace(/"/g, '&quot;');
+}
+
+function updateSelectorOptions() {
+    const checkType = document.querySelector('input[name="check_type"]:checked').value;
+    const container = document.getElementById('selector-options');
+    const currentSelector = '{{ item.selector_type if item else '' }}';
+
+    if (checkType === 'html') {
+        container.innerHTML = `
+            <div class="grid">
+                <label><input type="radio" name="selector_type" value="css"
+                    ${(!currentSelector || currentSelector === 'css') ? 'checked' : ''}> CSS selector</label>
+                <label><input type="radio" name="selector_type" value="regex"
+                    ${currentSelector === 'regex' ? 'checked' : ''}> Regex</label>
+            </div>`;
+    } else {
+        container.innerHTML = `
+            <div class="grid">
+                <label><input type="radio" name="selector_type" value="jsonpath"
+                    ${(!currentSelector || currentSelector === 'jsonpath') ? 'checked' : ''}> JSONPath</label>
+                <label><input type="radio" name="selector_type" value="regex"
+                    ${currentSelector === 'regex' ? 'checked' : ''}> Regex</label>
+            </div>`;
+    }
+}
+
+function toggleBodyField() {
+    const method = document.getElementById('method-select').value;
+    const bodyField = document.getElementById('body-field');
+    bodyField.style.display = ['POST', 'PUT', 'PATCH'].includes(method) ? 'block' : 'none';
+}
+
+function getFormHeaders() {
+    const keys = document.querySelectorAll('input[name="header_key"]');
+    const values = document.querySelectorAll('input[name="header_value"]');
+    const headers = {};
+    keys.forEach((k, i) => {
+        if (k.value.trim()) headers[k.value.trim()] = values[i].value.trim();
+    });
+    return headers;
+}
+
+function testRequest() {
+    const btn = document.getElementById('test-request-btn');
+    btn.setAttribute('aria-busy', 'true');
+    btn.textContent = 'Testing...';
+
+    const data = {
+        url: document.querySelector('input[name="url"]').value,
+        method: document.getElementById('method-select').value,
+        headers: getFormHeaders(),
+        body: document.querySelector('textarea[name="body"]')?.value || '',
+        selector_type: document.querySelector('input[name="selector_type"]:checked')?.value || 'css',
+        selector: document.getElementById('selector-input').value
+    };
+
+    fetch('/api/test-request', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(result => {
+        const el = document.getElementById('test-result');
+        const content = document.getElementById('test-result-content');
+        el.style.display = 'block';
+
+        if (result.success) {
+            content.innerHTML = `<p><strong>Success!</strong> (${result.http_status}, ${result.duration_ms}ms)</p>
+                <p>Parsed value:</p><pre>${escapeHtml(result.value)}</pre>`;
+            document.getElementById('current-value-input').value = result.value;
+            enableButtons();
+        } else {
+            content.innerHTML = `<p><strong>Error:</strong> ${escapeHtml(result.error)}</p>`;
+        }
+    })
+    .catch(err => {
+        document.getElementById('test-result').style.display = 'block';
+        document.getElementById('test-result-content').innerHTML =
+            `<p><strong>Error:</strong> ${escapeHtml(err.message)}</p>`;
+    })
+    .finally(() => {
+        btn.removeAttribute('aria-busy');
+        btn.textContent = 'Test request';
+    });
+}
+
+function testNotification() {
+    const chatId = document.getElementById('chat-id-input').value;
+    const notifType = document.getElementById('notification-type').value;
+
+    fetch('/api/test-notification', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            notification_type: notifType,
+            notification_config: { chat_id: chatId }
+        })
+    })
+    .then(r => r.json())
+    .then(result => {
+        const el = document.getElementById('notification-result');
+        const content = document.getElementById('notification-result-content');
+        el.style.display = 'block';
+        if (result.success) {
+            content.textContent = 'Notification sent successfully!';
+            content.style.color = 'green';
+        } else {
+            content.textContent = 'Error: ' + result.error;
+            content.style.color = 'red';
+        }
+    })
+    .catch(err => {
+        document.getElementById('notification-result').style.display = 'block';
+        const content = document.getElementById('notification-result-content');
+        content.textContent = 'Error: ' + err.message;
+        content.style.color = 'red';
+    });
+}
+
+function enableButtons() {
+    document.getElementById('save-btn').removeAttribute('disabled');
+    document.getElementById('activate-btn').removeAttribute('disabled');
+}
+
+// --- cURL Import ---
+function importCurl() {
+    const raw = document.getElementById('curl-input').value.trim();
+    if (!raw) return;
+
+    let cmd = raw.replace(/\\\n/g, ' ').trim();
+    if (cmd.startsWith('curl ')) cmd = cmd.substring(5);
+
+    let method = 'GET';
+    let url = '';
+    let headers = {};
+    let body = '';
+
+    // Extract method
+    const methodMatch = cmd.match(/-X\s+(\w+)/);
+    if (methodMatch) method = methodMatch[1].toUpperCase();
+
+    // Extract headers
+    const headerRegex = /-H\s+['"](.*?)['"]/g;
+    let hm;
+    while ((hm = headerRegex.exec(cmd)) !== null) {
+        const colonIdx = hm[1].indexOf(':');
+        if (colonIdx > -1) {
+            headers[hm[1].substring(0, colonIdx).trim()] = hm[1].substring(colonIdx + 1).trim();
+        }
+    }
+
+    // Extract body
+    const bodyMatch = cmd.match(/(?:-d|--data|--data-raw)\s+['"](.*?)['"]/);
+    if (bodyMatch) {
+        body = bodyMatch[1];
+        if (!methodMatch) method = 'POST';
+    }
+
+    // Extract URL (quoted or unquoted)
+    const urlMatch = cmd.match(/(?:^|\s)['"]?(https?:\/\/[^\s'"]+)['"]?/);
+    if (urlMatch) url = urlMatch[1];
+
+    // Apply to form
+    if (url) document.querySelector('input[name="url"]').value = url;
+    document.getElementById('method-select').value = method;
+    toggleBodyField();
+    if (body) {
+        const bodyEl = document.querySelector('textarea[name="body"]');
+        if (bodyEl) bodyEl.value = body;
+    }
+
+    // Replace headers
+    document.getElementById('headers-container').innerHTML = '';
+    const entries = Object.entries(headers);
+    if (entries.length === 0) {
+        addHeaderRow('', '');
+    } else {
+        entries.forEach(([k, v]) => addHeaderRow(k, v));
+    }
+
+    document.getElementById('curl-input').value = '';
+}
+</script>
+{% endblock %}

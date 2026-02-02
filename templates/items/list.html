@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Items — Change Watcher{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <h2 style="margin: 0;">Watch Items</h2>
+    <a href="{{ url_for('items.item_new') }}" role="button">Add new</a>
+</div>
+
+{% if items %}
+<figure>
+<table>
+    <thead>
+        <tr>
+            <th>Status</th>
+            <th>Name</th>
+            <th>URL</th>
+            <th>Last Checked</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody id="items-table-body">
+        {% for item in items %}
+        {% include "partials/item_row.html" %}
+        {% endfor %}
+    </tbody>
+</table>
+</figure>
+{% else %}
+<article style="text-align: center;">
+    <p>No watch items yet.</p>
+    <a href="{{ url_for('items.item_new') }}" role="button">Create your first item</a>
+</article>
+{% endif %}
+{% endblock %}
