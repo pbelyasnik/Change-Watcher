@@ -1,8 +1,11 @@
+import logging
 from datetime import datetime
 
 import httpx
 
 from config import Config
+
+logger = logging.getLogger(__name__)
 
 
 def send_telegram(chat_id: str, message: str) -> bool:
@@ -14,7 +17,6 @@ def send_telegram(chat_id: str, message: str) -> bool:
     payload = {
         'chat_id': chat_id,
         'text': message,
-        'parse_mode': 'HTML',
         'disable_web_page_preview': True
     }
 
@@ -38,10 +40,14 @@ def send_notification(notification_type: str, notification_config: dict, message
 
 def format_message(template: str, old_value: str, new_value: str, url: str, name: str) -> str:
     now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
-    return template.format(
-        old_value=old_value or '(none)',
-        new_value=new_value or '(none)',
-        url=url,
-        name=name,
-        timestamp=now
-    )
+    replacements = {
+        '{old_value}': old_value or '(none)',
+        '{new_value}': new_value or '(none)',
+        '{url}': url,
+        '{name}': name,
+        '{timestamp}': now,
+    }
+    result = template
+    for tag, value in replacements.items():
+        result = result.replace(tag, value)
+    return result

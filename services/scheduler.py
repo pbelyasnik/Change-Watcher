@@ -38,18 +38,30 @@ def master_tick(app):
         from db import get_db
         from services.checker import check_item
 
-        db = get_db()
-        items = db.execute(
-            "SELECT * FROM watch_items WHERE status = 'active' "
-            "AND (last_checked_at IS NULL "
-            "OR datetime(last_checked_at, '+' || interval_minutes || ' minutes') <= datetime('now'))"
-        ).fetchall()
+        try:
+            db = get_db()
+            items = db.execute(
+                "SELECT * FROM watch_items WHERE status = 'active' "
+                "AND (last_checked_at IS NULL "
+                "OR datetime(last_checked_at, '+' || interval_minutes || ' minutes', '-5 seconds') <= datetime('now'))"
+            ).fetchall()
 
-        for item in items:
-            try:
-                check_item(dict(item))
-            except Exception as e:
-                logger.error(f'Error checking item {item["id"]} ({item["name"]}): {e}')
+            for item in items:
+                try:
+                    result = check_item(dict(item))
+                    if result.get('error'):
+                        logger.warning(
+                            'Item %s (%s): %s', item['id'], item['name'], result['error']
+                        )
+                    elif result.get('value_changed'):
+                        logger.info(
+                            'Item %s (%s): value changed, notification_sent=%s',
+                            item['id'], item['name'], result['notification_sent']
+                        )
+                except Exception as e:
+                    logger.error('Error checking item %s (%s): %s', item['id'], item['name'], e)
+        except Exception as e:
+            logger.error('master_tick failed: %s', e)
 
 
 def daily_cleanup(app):
@@ -70,4 +82,4 @@ def daily_cleanup(app):
             db.commit()
             logger.info('Daily cleanup completed')
         except Exception as e:
-            logger.error(f'Cleanup error: {e}')
+            logger.error('Cleanup error: %s', e)

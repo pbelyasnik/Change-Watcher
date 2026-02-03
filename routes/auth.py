@@ -62,7 +62,7 @@ def login():
 
     resp = make_response(redirect(url_for('items.item_list')))
     resp.set_cookie(
-        Config.SESSION_COOKIE_NAME,
+        Config.AUTH_COOKIE_NAME,
         token,
         max_age=Config.SESSION_MAX_AGE_DAYS * 86400,
         httponly=True,
@@ -73,11 +73,11 @@ def login():
 
 @auth_bp.route('/logout')
 def logout():
-    token = request.cookies.get(Config.SESSION_COOKIE_NAME)
+    token = request.cookies.get(Config.AUTH_COOKIE_NAME)
     if token:
         db = get_db()
         db.execute('DELETE FROM sessions WHERE token = ?', (token,))
         db.commit()
     resp = make_response(redirect(url_for('auth.login')))
-    resp.delete_cookie(Config.SESSION_COOKIE_NAME)
+    resp.delete_cookie(Config.AUTH_COOKIE_NAME)
     return resp

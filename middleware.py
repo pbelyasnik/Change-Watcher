@@ -16,7 +16,7 @@ def register_middleware(app):
         ):
             return
 
-        token = request.cookies.get(Config.SESSION_COOKIE_NAME)
+        token = request.cookies.get(Config.AUTH_COOKIE_NAME)
         if not token:
             return redirect(url_for('auth.login'))
 
@@ -27,7 +27,7 @@ def register_middleware(app):
 
         if not session:
             resp = redirect(url_for('auth.login'))
-            resp.delete_cookie(Config.SESSION_COOKIE_NAME)
+            resp.delete_cookie(Config.AUTH_COOKIE_NAME)
             return resp
 
         # Check if session expired
@@ -36,7 +36,7 @@ def register_middleware(app):
             db.execute('DELETE FROM sessions WHERE id = ?', (session['id'],))
             db.commit()
             resp = redirect(url_for('auth.login'))
-            resp.delete_cookie(Config.SESSION_COOKIE_NAME)
+            resp.delete_cookie(Config.AUTH_COOKIE_NAME)
             return resp
 
         # Update last activity
