@@ -67,14 +67,19 @@
         </div>
 
         <!-- Headers -->
-        <details>
+        <details id="headers-details">
             <summary>Headers</summary>
             <div id="headers-container">
                 <!-- Populated by JS -->
             </div>
-            <button type="button" class="outline secondary" onclick="addHeaderRow('', '')">
-                + Add header
-            </button>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button type="button" class="outline secondary" onclick="addHeaderRow('', '')">
+                    + Add header
+                </button>
+                <button type="button" class="outline" onclick="showImportHeaders()">
+                    Import headers
+                </button>
+            </div>
         </details>
 
         <!-- Body -->
@@ -173,6 +178,23 @@
     </div>
 </form>
 
+<dialog id="import-headers-dialog">
+    <article>
+        <header>
+            <button type="button" aria-label="Close" rel="prev" onclick="document.getElementById('import-headers-dialog').close()"></button>
+            <h3>Import Headers</h3>
+        </header>
+        <label>
+            Paste headers (one per line, format: <code>Name: Value</code>)
+            <textarea id="import-headers-input" rows="8" placeholder="Name: Value"></textarea>
+        </label>
+        <footer>
+            <button type="button" class="secondary" onclick="document.getElementById('import-headers-dialog').close()">Cancel</button>
+            <button type="button" onclick="doImportHeaders()">Import</button>
+        </footer>
+    </article>
+</dialog>
+
 {% endblock %}
 
 {% block scripts %}
@@ -202,6 +224,8 @@ function loadHeaders() {
         addHeaderRow('', '');
     } else {
         entries.forEach(([k, v]) => addHeaderRow(k, v));
+        // Open headers section if there are existing headers
+        document.getElementById('headers-details').setAttribute('open', '');
     }
 }
 
@@ -215,6 +239,25 @@ function addHeaderRow(key, value) {
         <button type="button" class="outline secondary" onclick="this.parentElement.remove()" style="max-width:60px">-</button>
     `;
     container.appendChild(row);
+}
+
+function showImportHeaders() {
+    document.getElementById('import-headers-input').value = '';
+    document.getElementById('import-headers-dialog').showModal();
+}
+
+function doImportHeaders() {
+    const raw = document.getElementById('import-headers-input').value;
+    const lines = raw.split('\n');
+    for (const line of lines) {
+        const idx = line.indexOf(':');
+        if (idx > 0) {
+            const key = line.substring(0, idx).trim();
+            const value = line.substring(idx + 1).trim();
+            if (key) addHeaderRow(key, value);
+        }
+    }
+    document.getElementById('import-headers-dialog').close();
 }
 
 function escapeHtml(str) {
