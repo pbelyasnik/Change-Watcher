@@ -38,5 +38,20 @@
     </main>
 
     {% block scripts %}{% endblock %}
+    <script>
+    function convertUtcTimes(root) {
+        (root || document).querySelectorAll('.utc-time').forEach(function(el) {
+            var utc = el.getAttribute('data-utc');
+            if (!utc) return;
+            var d = new Date(utc + 'Z');
+            if (isNaN(d)) return;
+            var pad = function(n) { return n < 10 ? '0' + n : n; };
+            el.textContent = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate())
+                + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+        });
+    }
+    convertUtcTimes();
+    document.body.addEventListener('htmx:afterSwap', function(e) { convertUtcTimes(e.detail.target); });
+    </script>
 </body>
 </html>
