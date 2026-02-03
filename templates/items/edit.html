@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 
+{% set headers_json = item.headers if item and item.headers else '{}' %}
+{% set notif_config_json = item.notification_config if item and item.notification_config else '{}' %}
+
 {% block title %}{{ 'Edit' if item else 'New' }} Item — Change Watcher{% endblock %}
 
 {% block content %}
-{% set headers_json = item.headers if item and item.headers else '{}' %}
-{% set notif_config_json = item.notification_config if item and item.notification_config else '{}' %}
 
 <h2>{{ 'Edit' if item else 'New' }} Watch Item</h2>
 
@@ -225,7 +226,7 @@ function escapeHtml(str) {
 function updateSelectorOptions() {
     const checkType = document.querySelector('input[name="check_type"]:checked').value;
     const container = document.getElementById('selector-options');
-    const currentSelector = '{{ item.selector_type if item else '' }}';
+    const currentSelector = '{{ item.selector_type if item else "" }}';
 
     if (checkType === 'html') {
         container.innerHTML = `

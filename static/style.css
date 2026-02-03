@@ -46,3 +46,7 @@
     white-space: pre-wrap;
     word-break: break-all;
 }
+
+a[role="button"][href="/items"] {
+    margin-bottom: var(--pico-spacing);
+}

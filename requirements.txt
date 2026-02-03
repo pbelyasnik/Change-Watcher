@@ -6,3 +6,4 @@ lxml
 jsonpath-ng
 apscheduler
 python-dotenv
+tzdata

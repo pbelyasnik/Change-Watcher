@@ -24,7 +24,7 @@
                     hx-post="{{ url_for('items.item_run', item_id=item.id) }}"
                     hx-target="#item-row-{{ item.id }}"
                     hx-swap="outerHTML">
-                Run
+                Run once
             </button>
             {% endif %}
             <a href="{{ url_for('items.item_edit', item_id=item.id) }}" class="outline action-btn" role="button">Edit</a>
