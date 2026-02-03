@@ -88,6 +88,23 @@ def item_run(item_id):
     return render_template('partials/item_row.html', item=item)
 
 
+@items_bp.route('/items/<int:item_id>/delete', methods=['POST'])
+def item_delete(item_id):
+    db = get_db()
+    item = db.execute(
+        'SELECT * FROM watch_items WHERE id = ? AND access_code_id = ?',
+        (item_id, g.user_id)
+    ).fetchone()
+    if not item:
+        flash('Item not found.', 'error')
+        return redirect(url_for('items.item_list'))
+
+    db.execute('DELETE FROM watch_items WHERE id = ?', (item_id,))
+    db.commit()
+    flash('Item deleted.', 'success')
+    return redirect(url_for('items.item_list'))
+
+
 def _save_item(item_id):
     db = get_db()
     action = request.form.get('action', 'save')

@@ -170,6 +170,7 @@
 
     <!-- Action Buttons -->
     <div class="grid">
+        <button type="button" class="outline contrast" onclick="confirmDelete()" {{ 'disabled' if not item else '' }}>Delete</button>
         <a href="{{ url_for('items.item_list') }}" role="button" class="outline secondary">Discard</a>
         <button type="submit" name="action" value="save" id="save-btn"
                 {{ 'disabled' if not item else '' }}>Save</button>
@@ -177,6 +178,10 @@
                 {{ 'disabled' if not item else '' }}>Save &amp; Activate</button>
     </div>
 </form>
+
+{% if item %}
+<form id="delete-form" method="post" action="{{ url_for('items.item_delete', item_id=item.id) }}" style="display:none;"></form>
+{% endif %}
 
 <dialog id="import-headers-dialog">
     <article>
@@ -258,6 +263,12 @@ function doImportHeaders() {
         }
     }
     document.getElementById('import-headers-dialog').close();
+}
+
+function confirmDelete() {
+    if (confirm('Are you sure you want to delete this item? This action cannot be undone.')) {
+        document.getElementById('delete-form').submit();
+    }
 }
 
 function escapeHtml(str) {
