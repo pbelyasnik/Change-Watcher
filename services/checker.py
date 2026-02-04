@@ -19,6 +19,7 @@ def check_item(item: dict) -> dict:
     selector_type = item['selector_type']
     selector = item['selector']
     previous_value = item['current_value']
+    had_error = bool(item['last_error'])
 
     http_status = None
     parsed_value = None
@@ -49,14 +50,20 @@ def check_item(item: dict) -> dict:
         error_msg = str(e)
         parsed_value = None
 
-    # Send notification if value changed or on error
-    if value_changed or (error_msg and previous_value is not None):
+    # Determine what notifications to send
+    should_notify_change = value_changed
+    should_notify_error = error_msg and not had_error  # only on first occurrence
+    should_notify_recovery = not error_msg and had_error  # error just cleared
+
+    if should_notify_change or should_notify_error or should_notify_recovery:
         try:
             notification_type = item['notification_type']
             notification_config = json.loads(item['notification_config']) if item['notification_config'] else {}
 
-            if error_msg:
-                message = f'⚠️ {item["name"]}\n\nFailed to parse response:\n{error_msg}\n\nURL: {url}'
+            if should_notify_error:
+                message = f'⚠️ {item["name"]}\n\nError: {error_msg}\n\nURL: {url}'
+            elif should_notify_recovery:
+                message = f'✅ {item["name"]}\n\nRecovered — working normally again.\n\nURL: {url}'
             else:
                 template = item['message_template'] or (
                     '🔔 {name}\n\nValue changed!\nOld: {old_value}\nNew: {new_value}\n\nURL: {url}\nTime: {timestamp}'
@@ -77,15 +84,15 @@ def check_item(item: dict) -> dict:
     db = get_db()
     if parsed_value is not None:
         db.execute(
-            "UPDATE watch_items SET current_value = ?, last_checked_at = datetime('now'), "
-            "updated_at = datetime('now') WHERE id = ?",
+            "UPDATE watch_items SET current_value = ?, last_error = NULL, "
+            "last_checked_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
             (parsed_value, item_id)
         )
     else:
         db.execute(
-            "UPDATE watch_items SET last_checked_at = datetime('now'), "
-            "updated_at = datetime('now') WHERE id = ?",
-            (item_id,)
+            "UPDATE watch_items SET last_error = ?, "
+            "last_checked_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
+            (error_msg, item_id)
         )
 
     db.execute(

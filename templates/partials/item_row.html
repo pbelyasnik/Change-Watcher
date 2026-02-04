@@ -1,12 +1,17 @@
 <tr id="item-row-{{ item.id }}">
     <td>
-        {% if item.status == 'active' %}
-        <span class="status-dot status-active" title="Active"></span>
-        {% elif item.status == 'paused' %}
-        <span class="status-dot status-paused" title="Paused"></span>
-        {% else %}
-        <span class="status-dot status-draft" title="Draft"></span>
-        {% endif %}
+        <span class="status-indicator">
+            {% if item.status == 'active' %}
+            <span class="status-dot status-active" title="Active"></span>
+            {% elif item.status == 'paused' %}
+            <span class="status-dot status-paused" title="Paused"></span>
+            {% else %}
+            <span class="status-dot status-draft" title="Draft"></span>
+            {% endif %}
+            {% if item.last_error %}
+            <span class="status-error" title="{{ item.last_error }}"> ⚠️ </span>
+            {% endif %}
+        </span>
     </td>
     <td><a href="{{ url_for('items.item_edit', item_id=item.id) }}">{{ item.name }}</a></td>
     <td><small>{{ item.url[:50] }}{% if item.url|length > 50 %}...{% endif %}</small></td>

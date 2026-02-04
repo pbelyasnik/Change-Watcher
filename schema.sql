@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS watch_items (
     notification_config TEXT NOT NULL DEFAULT '{}',
     message_template TEXT NOT NULL DEFAULT '',
     current_value TEXT,
+    last_error TEXT,
     status TEXT NOT NULL DEFAULT 'draft',
     interval_minutes INTEGER NOT NULL DEFAULT 5,
     last_checked_at TEXT,

@@ -17,6 +17,20 @@
     background-color: #adb5bd;
 }
 
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.status-error {
+    color: #ff4136;
+    font-weight: bold;
+    font-size: 0.9rem;
+    line-height: 1;
+    cursor: help;
+}
+
 .action-buttons {
     display: flex;
     gap: 0.25rem;
