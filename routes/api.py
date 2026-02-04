@@ -47,11 +47,17 @@ def test_request():
             'success': True,
             'value': value,
             'http_status': resp.status_code,
-            'duration_ms': duration_ms
+            'duration_ms': duration_ms,
+            'response_body': content
         })
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        error_resp = {'success': False, 'error': str(e)}
+        if 'resp' in locals():
+            error_resp['http_status'] = resp.status_code
+            error_resp['response_body'] = resp.text
+            error_resp['duration_ms'] = duration_ms
+        return jsonify(error_resp), 400
 
 
 @api_bp.route('/test-notification', methods=['POST'])

@@ -18,7 +18,7 @@
         <label>
             Name
             <input type="text" name="name" value="{{ item.name if item else '' }}" required
-                   placeholder="My price checker">
+                   placeholder="My checker...">
         </label>
         <label>
             Check interval (minutes)
@@ -26,25 +26,6 @@
                    value="{{ item.interval_minutes if item else 5 }}">
         </label>
     </div>
-
-    <!-- Check Type -->
-    <fieldset>
-        <legend>Check Type</legend>
-        <div class="grid">
-            <label>
-                <input type="radio" name="check_type" value="html"
-                       {{ 'checked' if not item or item.check_type == 'html' }}
-                       onchange="updateSelectorOptions()">
-                HTML page
-            </label>
-            <label>
-                <input type="radio" name="check_type" value="api"
-                       {{ 'checked' if item and item.check_type == 'api' }}
-                       onchange="updateSelectorOptions()">
-                API request
-            </label>
-        </div>
-    </fieldset>
 
     <!-- Request Configuration -->
     <fieldset>
@@ -101,6 +82,25 @@
         </details>
     </fieldset>
 
+    <!-- Check Type -->
+    <fieldset>
+        <legend>Check Type</legend>
+        <div class="grid">
+            <label>
+                <input type="radio" name="check_type" value="html"
+                       {{ 'checked' if not item or item.check_type == 'html' }}
+                       onchange="updateSelectorOptions()">
+                HTML page
+            </label>
+            <label>
+                <input type="radio" name="check_type" value="api"
+                       {{ 'checked' if item and item.check_type == 'api' }}
+                       onchange="updateSelectorOptions()">
+                API request
+            </label>
+        </div>
+    </fieldset>
+
     <!-- Selector -->
     <fieldset>
         <legend>Value Selector</legend>
@@ -124,7 +124,18 @@
             </button>
         </div>
         <div id="test-result" style="display: none;">
-            <article id="test-result-content"></article>
+            <article>
+                <label id="test-result-content"></label>
+                <label>
+                    Parsed value:
+                    <textarea id="test-parsed-value" rows="3" style="display: none; height: 65px;"
+                            oninput="document.getElementById('current-value-input').value = this.value"></textarea>
+                </label>
+                <details id="test-response-details" style="display: none;">
+                    <summary id="test-response-summary">Response</summary>
+                    <pre id="test-response-body" style="max-height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-all;"></pre>
+                </details>
+            </article>
         </div>
     </fieldset>
 
@@ -161,7 +172,7 @@
             <code>{new_value}</code>, <code>{url}</code>, <code>{timestamp}</code>
         </small>
         <textarea name="message_template" rows="5"
-                  placeholder="🔔 {name}&#10;&#10;Value changed!&#10;Old: {old_value}&#10;New: {new_value}&#10;&#10;URL: {url}&#10;Time: {timestamp}">{{ item.message_template if item else '' }}</textarea>
+                  placeholder="Outline your message...">{{ item.message_template if item else "🔔 {name}\n\nValue changed!\nOld: {old_value}\nNew: {new_value}\n\nURL: {url}\nTime: {timestamp}" }}</textarea>
     </fieldset>
 
     <!-- Hidden field for current_value (set by test request) -->
@@ -254,12 +265,28 @@ function showImportHeaders() {
 function doImportHeaders() {
     const raw = document.getElementById('import-headers-input').value;
     const lines = raw.split('\n');
+    const rows = document.getElementById('headers-container').querySelectorAll('.grid');
     for (const line of lines) {
         const idx = line.indexOf(':');
         if (idx > 0) {
             const key = line.substring(0, idx).trim();
             const value = line.substring(idx + 1).trim();
-            if (key) addHeaderRow(key, value);
+            if (!key) continue;
+            // Check if header with this key already exists
+            let found = false;
+            for (const row of rows) {
+                const keyInput = row.querySelector('input[name="header_key"]');
+                if (keyInput && keyInput.value.toLowerCase() === key.toLowerCase()) {
+                    if (!found) {
+                        row.querySelector('input[name="header_value"]').value = value;
+                        found = true;
+                        // break;
+                    } else {
+                        row.querySelector('input[name="header_value"]').parentElement.remove();
+                    }
+                }
+            }
+            if (!found) addHeaderRow(key, value);
         }
     }
     document.getElementById('import-headers-dialog').close();
@@ -336,25 +363,42 @@ function testRequest() {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(data)
     })
-    .then(r => r.json())
+    .then(async r => { return { ...(await r.json()), _ok: r.ok }; })
     .then(result => {
         const el = document.getElementById('test-result');
         const content = document.getElementById('test-result-content');
+        const parsedEl = document.getElementById('test-parsed-value');
+        const respDetails = document.getElementById('test-response-details');
+        const respSummary = document.getElementById('test-response-summary');
+        const respBody = document.getElementById('test-response-body');
         el.style.display = 'block';
 
+        // Show response details if available
+        if (result.http_status !== undefined) {
+            respSummary.textContent = `Response (HTTP ${result.http_status}, ${result.duration_ms}ms)`;
+            respBody.textContent = result.response_body || '';
+            respDetails.style.display = 'block';
+        } else {
+            respDetails.style.display = 'none';
+        }
+
         if (result.success) {
-            content.innerHTML = `<p><strong>Success!</strong> (${result.http_status}, ${result.duration_ms}ms)</p>
-                <p>Parsed value:</p><pre>${escapeHtml(result.value)}</pre>`;
+            content.innerHTML = `<p><ins>Success!</ins></p>`;
+            parsedEl.value = result.value;
+            parsedEl.style.display = '';
             document.getElementById('current-value-input').value = result.value;
             enableButtons();
         } else {
             content.innerHTML = `<p><strong>Error:</strong> ${escapeHtml(result.error)}</p>`;
+            parsedEl.style.display = 'none';
         }
     })
     .catch(err => {
         document.getElementById('test-result').style.display = 'block';
         document.getElementById('test-result-content').innerHTML =
             `<p><strong>Error:</strong> ${escapeHtml(err.message)}</p>`;
+        document.getElementById('test-parsed-value').style.display = 'none';
+        document.getElementById('test-response-details').style.display = 'none';
     })
     .finally(() => {
         btn.removeAttribute('aria-busy');
