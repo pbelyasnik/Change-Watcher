@@ -31,6 +31,7 @@ Copy `.env.example` to `.env` and set:
 SECRET_KEY=<random-string>
 TELEGRAM_BOT_TOKEN=<your-bot-token>
 DATABASE_PATH=data/change_watcher.db
+LOCAL_ONLY=true
 ```
 
 ## Docker

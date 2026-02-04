@@ -15,3 +15,4 @@ class Config:
     BRUTE_FORCE_MAX_ATTEMPTS = 5
     LOG_RETENTION_DAYS = 30
     CHECK_INTERVAL_SECONDS = 15
+    LOCAL_ONLY = os.environ.get('LOCAL_ONLY', 'false').lower() in ('true', '1', 'yes')

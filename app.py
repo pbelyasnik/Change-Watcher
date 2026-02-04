@@ -54,4 +54,5 @@ if __name__ == '__main__':
     # or when not using the reloader at all (production: debug=False).
     if not debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         start_scheduler(app)
-    app.run(host='0.0.0.0', port=5000, debug=debug)
+    host = '127.0.0.1' if Config.LOCAL_ONLY else '0.0.0.0'
+    app.run(host=host, port=5000, debug=debug)
