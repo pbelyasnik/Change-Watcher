@@ -1,6 +1,5 @@
 {% extends "base.html" %}
 
-{% set headers_json = item.headers if item and item.headers else '{}' %}
 {% set notif_config_json = item.notification_config if item and item.notification_config else '{}' %}
 
 {% block title %}{{ 'Edit' if item else 'New' }} Item — Change Watcher{% endblock %}
@@ -13,7 +12,7 @@
       action="{{ url_for('items.item_edit', item_id=item.id) if item else url_for('items.item_new') }}"
       id="item-form">
 
-    <!-- Name & Interval -->
+    <!-- 1. Name & Interval -->
     <div class="grid">
         <label>
             Name
@@ -27,119 +26,57 @@
         </label>
     </div>
 
-    <!-- Request Configuration -->
+    <!-- 2. Secrets -->
     <fieldset>
-        <legend>Request Configuration</legend>
-
-        <div class="grid">
-            <label>
-                URL
-                <input type="url" name="url" value="{{ item.url if item else '' }}" required
-                       placeholder="https://example.com/page">
-            </label>
-            <label>
-                Method
-                <select name="method" id="method-select" onchange="toggleBodyField()">
-                    {% for m in ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] %}
-                    <option value="{{ m }}" {{ 'selected' if item and item.method == m }}>{{ m }}</option>
-                    {% endfor %}
-                </select>
-            </label>
+        <legend>Secrets</legend>
+        <small>Secrets are stored encrypted and referenced in YAML as <code>{% raw %}{{key}}{% endraw %}</code></small>
+        <div id="secrets-container">
+            <!-- Populated by JS -->
         </div>
-
-        <!-- Headers -->
-        <details id="headers-details">
-            <summary>Headers</summary>
-            <div id="headers-container">
-                <!-- Populated by JS -->
-            </div>
-            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                <button type="button" class="outline secondary" onclick="addHeaderRow('', '')">
-                    + Add header
-                </button>
-                <button type="button" class="outline" onclick="showImportHeaders()">
-                    Import headers
-                </button>
-            </div>
-        </details>
-
-        <!-- Body -->
-        <div id="body-field" style="display: none;">
-            <label>
-                Request Body
-                <textarea name="body" rows="4" placeholder='{"key": "value"}'>{{ item.body if item else '' }}</textarea>
-            </label>
-        </div>
-
-        <!-- cURL Import -->
-        <details>
-            <summary>Import from cURL</summary>
-            <label>
-                Paste cURL command
-                <textarea id="curl-input" rows="3" placeholder='curl -X GET "https://api.example.com/data" -H "Authorization: Bearer token"'></textarea>
-            </label>
-            <button type="button" class="outline" onclick="importCurl()">Import</button>
-        </details>
+        <button type="button" class="outline secondary" onclick="addSecretRow('', '', true)"
+                style="margin-top: 0.5rem;">
+            + Add secret
+        </button>
     </fieldset>
 
-    <!-- Check Type -->
+    <!-- 3. Pipeline Config (YAML) -->
     <fieldset>
-        <legend>Check Type</legend>
-        <div class="grid">
-            <label>
-                <input type="radio" name="check_type" value="html"
-                       {{ 'checked' if not item or item.check_type == 'html' }}
-                       onchange="updateSelectorOptions()">
-                HTML page
-            </label>
-            <label>
-                <input type="radio" name="check_type" value="api"
-                       {{ 'checked' if item and item.check_type == 'api' }}
-                       onchange="updateSelectorOptions()">
-                API request
-            </label>
-        </div>
+        <legend>Pipeline Config</legend>
+        <textarea name="pipeline_yaml" id="pipeline-yaml" rows="25"
+                  spellcheck="false"
+                  style="font-family: monospace; font-size: 0.85rem; tab-size: 2; white-space: pre; overflow-x: auto;"
+                  >{{ item.pipeline_yaml if item else default_yaml }}</textarea>
+        <div id="yaml-errors" style="display: none;"></div>
+        <button type="button" class="outline" onclick="validateYaml()" style="margin-top: 0.5rem;">Validate</button>
     </fieldset>
 
-    <!-- Selector -->
+    <!-- 4. Pipeline Debugger -->
     <fieldset>
-        <legend>Value Selector</legend>
-        <div id="selector-options">
-            <!-- Populated by JS based on check_type -->
+        <legend>Pipeline Debugger</legend>
+        <div id="debugger-steps">
+            <small>Click <strong>Validate</strong> above to load pipeline steps.</small>
         </div>
-        <label>
-            Selector expression
-            <input type="text" name="selector" id="selector-input"
-                   value="{{ item.selector if item else '' }}"
-                   placeholder="e.g. .price, $.data.value, or regex pattern">
-        </label>
-    </fieldset>
-
-    <!-- Test Request -->
-    <fieldset>
-        <legend>Test</legend>
-        <div class="grid">
-            <button type="button" class="outline" id="test-request-btn" onclick="testRequest()">
-                Test request
+        <div id="debugger-vars" style="display: none; margin-top: 1rem;">
+            <strong>Variables:</strong>
+            <pre id="debugger-vars-content" style="max-height: 200px; overflow: auto; font-size: 0.85rem;"></pre>
+        </div>
+        <div id="debugger-response" style="display: none; margin-top: 1rem;">
+            <details>
+                <summary id="debugger-response-summary">Last Response</summary>
+                <pre id="debugger-response-body" style="max-height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-all; font-size: 0.85rem;"></pre>
+            </details>
+        </div>
+        <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+            <button type="button" class="outline" onclick="runAllSteps()" id="run-all-btn" disabled>
+                Run All
+            </button>
+            <button type="button" class="outline secondary" onclick="resetDebugger()" id="reset-btn" disabled>
+                Reset Variables
             </button>
         </div>
-        <div id="test-result" style="display: none;">
-            <article>
-                <label id="test-result-content"></label>
-                <label>
-                    Parsed value:
-                    <textarea id="test-parsed-value" rows="3" style="display: none; height: 65px;"
-                            oninput="document.getElementById('current-value-input').value = this.value"></textarea>
-                </label>
-                <details id="test-response-details" style="display: none;">
-                    <summary id="test-response-summary">Response</summary>
-                    <pre id="test-response-body" style="max-height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-all;"></pre>
-                </details>
-            </article>
-        </div>
     </fieldset>
 
-    <!-- Notification -->
+    <!-- 5. Notification -->
     <fieldset>
         <legend>Notification</legend>
         <label>
@@ -164,7 +101,7 @@
         </div>
     </fieldset>
 
-    <!-- Message Template -->
+    <!-- 6. Message Template -->
     <fieldset>
         <legend>Message Template</legend>
         <small>
@@ -172,19 +109,14 @@
             <code>{new_value}</code>, <code>{url}</code>, <code>{timestamp}</code>
         </small>
         <textarea name="message_template" rows="5"
-                  placeholder="Outline your message...">{{ item.message_template if item else "🔔 {name}\n\nValue changed!\nOld: {old_value}\nNew: {new_value}\n\nURL: {url}\nTime: {timestamp}" }}</textarea>
+                  placeholder="Outline your message...">{{ item.message_template if item else "🔔 {name}\n\nValue changed!\nOld: {old_value}\nNew: {new_value}\n\nTime: {timestamp}" }}</textarea>
     </fieldset>
 
-    <!-- Hidden field for current_value (set by test request) -->
-    <input type="hidden" name="current_value" id="current-value-input"
-           value="{{ item.current_value if item else '' }}">
-
-    <!-- Action Buttons -->
+    <!-- 7. Action Buttons -->
     <div class="grid">
         <button type="button" class="outline contrast" onclick="confirmDelete()" {{ 'disabled' if not item else '' }}>Delete</button>
         <a href="{{ url_for('items.item_list') }}" role="button" class="outline secondary">Discard</a>
-        <button type="submit" name="action" value="save" id="save-btn"
-                {{ 'disabled' if not item else '' }}>Save</button>
+        <button type="submit" name="action" value="save" id="save-btn">Save</button>
         <button type="submit" name="action" value="activate" id="activate-btn"
                 {{ 'disabled' if not item else '' }}>Save &amp; Activate</button>
     </div>
@@ -194,218 +126,426 @@
 <form id="delete-form" method="post" action="{{ url_for('items.item_delete', item_id=item.id) }}" style="display:none;"></form>
 {% endif %}
 
-<dialog id="import-headers-dialog">
-    <article>
-        <header>
-            <button type="button" aria-label="Close" rel="prev" onclick="document.getElementById('import-headers-dialog').close()"></button>
-            <h3>Import Headers</h3>
-        </header>
-        <label>
-            Paste headers (one per line, format: <code>Name: Value</code>)
-            <textarea id="import-headers-input" rows="8" placeholder="Name: Value"></textarea>
-        </label>
-        <footer>
-            <button type="button" class="secondary" onclick="document.getElementById('import-headers-dialog').close()">Cancel</button>
-            <button type="button" onclick="doImportHeaders()">Import</button>
-        </footer>
-    </article>
-</dialog>
-
 {% endblock %}
 
 {% block scripts %}
 <script>
-// --- Parse headers from server ---
-const existingHeaders = {{ headers_json | safe }};
+const ITEM_ID = {{ item.id if item else 'null' }};
+const EXISTING_SECRETS = {{ secrets | tojson }};
+
+// --- Debugger State ---
+let debugVars = {};
+let debugSteps = [];
 
 // --- Init ---
 document.addEventListener('DOMContentLoaded', function() {
-    updateSelectorOptions();
-    toggleBodyField();
-    loadHeaders();
-    {% if item %}
-    enableButtons();
-    {% endif %}
+    loadSecrets();
+    setupTabKey();
 });
 
-function loadHeaders() {
-    let headers;
-    try {
-        headers = typeof existingHeaders === 'string' ? JSON.parse(existingHeaders) : existingHeaders;
-    } catch(e) {
-        headers = {};
-    }
-    const entries = Object.entries(headers);
-    if (entries.length === 0) {
-        addHeaderRow('', '');
-    } else {
-        entries.forEach(([k, v]) => addHeaderRow(k, v));
-        // Open headers section if there are existing headers
-        document.getElementById('headers-details').setAttribute('open', '');
-    }
+// --- Tab / Shift+Tab in YAML editor (preserves browser undo) ---
+const INDENT = '  '; // 2 spaces for YAML
+
+function getLineStart(text, pos) {
+    return text.lastIndexOf('\n', pos - 1) + 1;
 }
 
-function addHeaderRow(key, value) {
-    const container = document.getElementById('headers-container');
+function getLineEnd(text, pos) {
+    const idx = text.indexOf('\n', pos);
+    return idx === -1 ? text.length : idx;
+}
+
+function shouldIndentBlock(text, selStart, selEnd) {
+    const selectedText = text.substring(selStart, selEnd);
+    const selectedLineCount = selectedText.split('\n').length;
+    if (selectedLineCount >= 2) return true;
+    if (selEnd - selStart >= 2) return true;
+
+    const lineStart = getLineStart(text, selStart);
+    if (selStart === lineStart) return true;
+
+    const textBeforeCursor = text.substring(lineStart, selStart);
+    const textAfterCursor = text.substring(selStart, getLineEnd(text, selStart));
+    if (/^[ ]*$/.test(textBeforeCursor) && textAfterCursor === '') return false;
+    if (/^[ ]*$/.test(textBeforeCursor)) return true;
+
+    return false;
+}
+
+function setupTabKey() {
+    const el = document.getElementById('pipeline-yaml');
+    el.addEventListener('keydown', function(e) {
+        if (e.key !== 'Tab') return;
+        if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+        const text = this.value;
+        const selStart = this.selectionStart;
+        const selEnd = this.selectionEnd;
+
+        if (!shouldIndentBlock(text, selStart, selEnd)) {
+            if (!e.shiftKey) {
+                // Simple insert at cursor
+                e.preventDefault();
+                document.execCommand('insertText', false, INDENT);
+            }
+            return;
+        }
+
+        e.preventDefault();
+
+        const firstLineStart = getLineStart(text, selStart);
+        const lastLineEnd = getLineEnd(text, selEnd);
+        const block = text.substring(firstLineStart, lastLineEnd);
+        const lines = block.split('\n');
+
+        let newLines;
+        let startDelta = 0;
+        let endDelta = 0;
+
+        if (!e.shiftKey) {
+            // Indent: add spaces to each line
+            newLines = lines.map((line, i) => {
+                const added = INDENT + line;
+                const diff = added.length - line.length;
+                if (i === 0) startDelta = diff;
+                endDelta += diff;
+                return added;
+            });
+        } else {
+            // Dedent: remove up to INDENT.length leading spaces
+            newLines = lines.map((line, i) => {
+                let removed = line;
+                if (line.startsWith(INDENT)) {
+                    removed = line.substring(INDENT.length);
+                } else {
+                    removed = line.replace(/^ {1,2}/, '');
+                }
+                const diff = removed.length - line.length;
+                if (i === 0) startDelta = diff;
+                endDelta += diff;
+                return removed;
+            });
+        }
+
+        const newBlock = newLines.join('\n');
+
+        // Select the block, then replace via execCommand for undo support
+        this.setSelectionRange(firstLineStart, lastLineEnd);
+        document.execCommand('insertText', false, newBlock);
+
+        // Restore selection across affected lines
+        const newStart = Math.max(firstLineStart, selStart + startDelta);
+        const newEnd = Math.max(newStart, selEnd + endDelta);
+        this.setSelectionRange(newStart, newEnd);
+    });
+}
+
+// --- Secrets ---
+function loadSecrets() {
+    if (EXISTING_SECRETS.length === 0) {
+        return;
+    }
+    EXISTING_SECRETS.forEach(key => addSecretRow(key, '', false));
+}
+
+function addSecretRow(key, value, isNew) {
+    const container = document.getElementById('secrets-container');
     const row = document.createElement('div');
     row.className = 'grid';
+    row.style.alignItems = 'center';
+
+    const placeholder = isNew ? '' : '••••••••';
+    const inputValue = isNew ? escapeHtml(value) : '••••••••';
+    const inputType = isNew ? 'text' : 'password';
+
     row.innerHTML = `
-        <input type="text" name="header_key" value="${escapeHtml(key)}" placeholder="Header name">
-        <input type="text" name="header_value" value="${escapeHtml(value)}" placeholder="Header value">
-        <button type="button" class="outline secondary" onclick="this.parentElement.remove()" style="max-width:60px">-</button>
+        <input type="text" name="secret_key" value="${escapeHtml(key)}" placeholder="Key name"
+               ${!isNew && key ? 'readonly' : ''}>
+        <div style="position: relative;">
+            <input type="${inputType}" name="secret_value" value="${inputValue}"
+                   placeholder="${placeholder}" autocomplete="off">
+            <button type="button" class="outline secondary secret-toggle"
+                    onclick="toggleSecretVisibility(this)" title="Show/hide"
+                    style="position: absolute; right: 4px; top: 40%; transform: translateY(-50%);
+                           padding: 0.15rem 0.4rem; font-size: 0.8rem; margin: 0; min-width: auto;">
+                ${inputType === 'password' ? '&#x1F512;' : '&#x1f441;'}
+            </button>
+        </div>
+        <button type="button" class="outline secondary" onclick="this.parentElement.remove()"
+                style="max-width: 60px;">-</button>
     `;
     container.appendChild(row);
 }
 
-function showImportHeaders() {
-    document.getElementById('import-headers-input').value = '';
-    document.getElementById('import-headers-dialog').showModal();
-}
-
-function doImportHeaders() {
-    const raw = document.getElementById('import-headers-input').value;
-    const lines = raw.split('\n');
-    const rows = document.getElementById('headers-container').querySelectorAll('.grid');
-    for (const line of lines) {
-        const idx = line.indexOf(':');
-        if (idx > 0) {
-            const key = line.substring(0, idx).trim();
-            const value = line.substring(idx + 1).trim();
-            if (!key) continue;
-            // Check if header with this key already exists
-            let found = false;
-            for (const row of rows) {
-                const keyInput = row.querySelector('input[name="header_key"]');
-                if (keyInput && keyInput.value.toLowerCase() === key.toLowerCase()) {
-                    if (!found) {
-                        row.querySelector('input[name="header_value"]').value = value;
-                        found = true;
-                        // break;
-                    } else {
-                        row.querySelector('input[name="header_value"]').parentElement.remove();
-                    }
-                }
-            }
-            if (!found) addHeaderRow(key, value);
-        }
-    }
-    document.getElementById('import-headers-dialog').close();
-}
-
-function confirmDelete() {
-    if (confirm('Are you sure you want to delete this item? This action cannot be undone.')) {
-        document.getElementById('delete-form').submit();
-    }
-}
-
-function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML.replace(/"/g, '&quot;');
-}
-
-function updateSelectorOptions() {
-    const checkType = document.querySelector('input[name="check_type"]:checked').value;
-    const container = document.getElementById('selector-options');
-    const currentSelector = '{{ item.selector_type if item else "" }}';
-
-    if (checkType === 'html') {
-        container.innerHTML = `
-            <div class="grid">
-                <label><input type="radio" name="selector_type" value="css"
-                    ${(!currentSelector || currentSelector === 'css') ? 'checked' : ''}> CSS selector</label>
-                <label><input type="radio" name="selector_type" value="regex"
-                    ${currentSelector === 'regex' ? 'checked' : ''}> Regex</label>
-            </div>`;
+function toggleSecretVisibility(btn) {
+    const input = btn.parentElement.querySelector('input[name="secret_value"]');
+    if (input.type === 'password') {
+        input.type = 'text';
+        btn.innerHTML = '&#x1f441;';
     } else {
-        container.innerHTML = `
-            <div class="grid">
-                <label><input type="radio" name="selector_type" value="jsonpath"
-                    ${(!currentSelector || currentSelector === 'jsonpath') ? 'checked' : ''}> JSONPath</label>
-                <label><input type="radio" name="selector_type" value="regex"
-                    ${currentSelector === 'regex' ? 'checked' : ''}> Regex</label>
-            </div>`;
+        input.type = 'password';
+        btn.innerHTML = '&#x1F512;';
     }
 }
 
-function toggleBodyField() {
-    const method = document.getElementById('method-select').value;
-    const bodyField = document.getElementById('body-field');
-    bodyField.style.display = ['POST', 'PUT', 'PATCH'].includes(method) ? 'block' : 'none';
-}
+// --- YAML Validation ---
+function validateYaml() {
+    const yaml = document.getElementById('pipeline-yaml').value;
+    const errEl = document.getElementById('yaml-errors');
 
-function getFormHeaders() {
-    const keys = document.querySelectorAll('input[name="header_key"]');
-    const values = document.querySelectorAll('input[name="header_value"]');
-    const headers = {};
-    keys.forEach((k, i) => {
-        if (k.value.trim()) headers[k.value.trim()] = values[i].value.trim();
-    });
-    return headers;
-}
-
-function testRequest() {
-    const btn = document.getElementById('test-request-btn');
-    btn.setAttribute('aria-busy', 'true');
-    btn.textContent = 'Testing...';
-
-    const data = {
-        url: document.querySelector('input[name="url"]').value,
-        method: document.getElementById('method-select').value,
-        headers: getFormHeaders(),
-        body: document.querySelector('textarea[name="body"]')?.value || '',
-        selector_type: document.querySelector('input[name="selector_type"]:checked')?.value || 'css',
-        selector: document.getElementById('selector-input').value
-    };
-
-    fetch('/api/test-request', {
+    fetch('/api/validate-yaml', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(data)
+        body: JSON.stringify({ yaml: yaml })
     })
-    .then(async r => { return { ...(await r.json()), _ok: r.ok }; })
+    .then(r => r.json())
     .then(result => {
-        const el = document.getElementById('test-result');
-        const content = document.getElementById('test-result-content');
-        const parsedEl = document.getElementById('test-parsed-value');
-        const respDetails = document.getElementById('test-response-details');
-        const respSummary = document.getElementById('test-response-summary');
-        const respBody = document.getElementById('test-response-body');
-        el.style.display = 'block';
-
-        // Show response details if available
-        if (result.http_status !== undefined) {
-            respSummary.textContent = `Response (HTTP ${result.http_status}, ${result.duration_ms}ms)`;
-            respBody.textContent = result.response_body || '';
-            respDetails.style.display = 'block';
+        if (result.valid) {
+            errEl.style.display = 'block';
+            errEl.innerHTML = '<small style="color: #2ecc40;">Pipeline config is valid.</small>';
+            debugSteps = result.steps || [];
+            renderDebuggerSteps();
+            document.getElementById('run-all-btn').removeAttribute('disabled');
+            document.getElementById('reset-btn').removeAttribute('disabled');
         } else {
-            respDetails.style.display = 'none';
-        }
-
-        if (result.success) {
-            content.innerHTML = `<p><ins>Success!</ins></p>`;
-            parsedEl.value = result.value;
-            parsedEl.style.display = '';
-            document.getElementById('current-value-input').value = result.value;
-            enableButtons();
-        } else {
-            content.innerHTML = `<p><strong>Error:</strong> ${escapeHtml(result.error)}</p>`;
-            parsedEl.style.display = 'none';
+            errEl.style.display = 'block';
+            errEl.innerHTML = result.errors.map(e =>
+                `<small style="color: #ff4136;">&#x26a0; ${escapeHtml(e)}</small>`
+            ).join('<br>');
+            debugSteps = [];
+            renderDebuggerSteps();
         }
     })
     .catch(err => {
-        document.getElementById('test-result').style.display = 'block';
-        document.getElementById('test-result-content').innerHTML =
-            `<p><strong>Error:</strong> ${escapeHtml(err.message)}</p>`;
-        document.getElementById('test-parsed-value').style.display = 'none';
-        document.getElementById('test-response-details').style.display = 'none';
-    })
-    .finally(() => {
-        btn.removeAttribute('aria-busy');
-        btn.textContent = 'Test request';
+        errEl.style.display = 'block';
+        errEl.innerHTML = `<small style="color: #ff4136;">Request failed: ${escapeHtml(err.message)}</small>`;
     });
 }
 
+// --- Pipeline Debugger ---
+function renderDebuggerSteps() {
+    const container = document.getElementById('debugger-steps');
+    if (debugSteps.length === 0) {
+        container.innerHTML = '<small>Click <strong>Validate</strong> above to load pipeline steps.</small>';
+        return;
+    }
+
+    let html = '';
+    debugSteps.forEach((step, i) => {
+        const label = step.type === 'check' ? 'Check' : step.name;
+        const badge = step.type === 'auth' ? '<span class="step-badge auth">auth</span>' : '<span class="step-badge check">check</span>';
+        html += `
+            <div class="debugger-step" id="step-${i}">
+                <span class="step-status" id="step-status-${i}">&#x25cb;</span>
+                ${badge}
+                <strong>${escapeHtml(label)}</strong>
+                <button type="button" class="outline action-btn" onclick="runStep(${i})" id="step-run-${i}">
+                    Run &#x25b6;
+                </button>
+                <span class="step-result" id="step-result-${i}"></span>
+            </div>`;
+    });
+    container.innerHTML = html;
+}
+
+function runStep(index) {
+    const btn = document.getElementById(`step-run-${index}`);
+    btn.setAttribute('aria-busy', 'true');
+    btn.textContent = '...';
+
+    const yaml = document.getElementById('pipeline-yaml').value;
+
+    fetch('/api/test-step', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            item_id: ITEM_ID,
+            step_index: index,
+            variables: debugVars,
+            yaml: yaml,
+        })
+    })
+    .then(r => r.json())
+    .then(result => {
+        const statusEl = document.getElementById(`step-status-${index}`);
+        const resultEl = document.getElementById(`step-result-${index}`);
+
+        if (result.skipped) {
+            statusEl.innerHTML = '&#x23e9;';
+            resultEl.textContent = 'skipped';
+            resultEl.style.color = '#adb5bd';
+        } else if (result.success) {
+            statusEl.innerHTML = '&#x25cf;';
+            statusEl.style.color = '#2ecc40';
+            resultEl.innerHTML = `<small>${result.http_status} OK &middot; ${result.duration_ms}ms</small>`;
+
+            // Merge extracted vars
+            if (result.extracted_vars) {
+                Object.assign(debugVars, result.extracted_vars);
+            }
+            // Enable activate button after successful full run
+            document.getElementById('activate-btn').removeAttribute('disabled');
+        } else {
+            statusEl.innerHTML = '&#x2716;';
+            statusEl.style.color = '#ff4136';
+            resultEl.innerHTML = `<small style="color: #ff4136;">${escapeHtml(result.error || 'Failed')}</small>`;
+        }
+
+        // Update vars display
+        updateVarsDisplay();
+
+        // Update response display
+        if (result.response_body !== null && result.response_body !== undefined) {
+            const respDiv = document.getElementById('debugger-response');
+            const respSummary = document.getElementById('debugger-response-summary');
+            const respBody = document.getElementById('debugger-response-body');
+            respDiv.style.display = 'block';
+            respSummary.textContent = `Response: HTTP ${result.http_status || '?'} · ${result.duration_ms || 0}ms`;
+            respBody.textContent = result.response_body;
+        }
+    })
+    .catch(err => {
+        const statusEl = document.getElementById(`step-status-${index}`);
+        const resultEl = document.getElementById(`step-result-${index}`);
+        statusEl.innerHTML = '&#x2716;';
+        statusEl.style.color = '#ff4136';
+        resultEl.innerHTML = `<small style="color: #ff4136;">${escapeHtml(err.message)}</small>`;
+    })
+    .finally(() => {
+        btn.removeAttribute('aria-busy');
+        btn.innerHTML = 'Run &#x25b6;';
+    });
+}
+
+async function runAllSteps() {
+    const btn = document.getElementById('run-all-btn');
+    btn.setAttribute('aria-busy', 'true');
+    btn.textContent = 'Running...';
+
+    // Reset first
+    debugVars = {};
+    updateVarsDisplay();
+    debugSteps.forEach((_, i) => {
+        document.getElementById(`step-status-${i}`).innerHTML = '&#x25cb;';
+        document.getElementById(`step-status-${i}`).style.color = '';
+        document.getElementById(`step-result-${i}`).textContent = '';
+    });
+
+    // Run each step sequentially
+    for (let i = 0; i < debugSteps.length; i++) {
+        await new Promise(resolve => {
+            const origFinally = () => resolve();
+            const stepBtn = document.getElementById(`step-run-${i}`);
+            stepBtn.setAttribute('aria-busy', 'true');
+            stepBtn.textContent = '...';
+
+            const yaml = document.getElementById('pipeline-yaml').value;
+
+            fetch('/api/test-step', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    item_id: ITEM_ID,
+                    step_index: i,
+                    variables: debugVars,
+                    yaml: yaml,
+                })
+            })
+            .then(r => r.json())
+            .then(result => {
+                const statusEl = document.getElementById(`step-status-${i}`);
+                const resultEl = document.getElementById(`step-result-${i}`);
+
+                if (result.skipped) {
+                    statusEl.innerHTML = '&#x23e9;';
+                    resultEl.textContent = 'skipped';
+                } else if (result.success) {
+                    statusEl.innerHTML = '&#x25cf;';
+                    statusEl.style.color = '#2ecc40';
+                    resultEl.innerHTML = `<small>${result.http_status} · ${result.duration_ms}ms</small>`;
+                    if (result.extracted_vars) {
+                        Object.assign(debugVars, result.extracted_vars);
+                    }
+                    document.getElementById('activate-btn').removeAttribute('disabled');
+                } else {
+                    statusEl.innerHTML = '&#x2716;';
+                    statusEl.style.color = '#ff4136';
+                    resultEl.innerHTML = `<small style="color: #ff4136;">${escapeHtml(result.error || 'Failed')}</small>`;
+                    btn.removeAttribute('aria-busy');
+                    btn.textContent = 'Run All';
+                    stepBtn.removeAttribute('aria-busy');
+                    stepBtn.innerHTML = 'Run &#x25b6;';
+                    updateVarsDisplay();
+                    // Show response
+                    if (result.response_body !== null && result.response_body !== undefined) {
+                        document.getElementById('debugger-response').style.display = 'block';
+                        document.getElementById('debugger-response-summary').textContent =
+                            `Response: HTTP ${result.http_status || '?'} · ${result.duration_ms || 0}ms`;
+                        document.getElementById('debugger-response-body').textContent = result.response_body;
+                    }
+                    return; // Stop on failure, don't resolve
+                }
+
+                // Show response
+                if (result.response_body !== null && result.response_body !== undefined) {
+                    document.getElementById('debugger-response').style.display = 'block';
+                    document.getElementById('debugger-response-summary').textContent =
+                        `Response: HTTP ${result.http_status || '?'} · ${result.duration_ms || 0}ms`;
+                    document.getElementById('debugger-response-body').textContent = result.response_body;
+                }
+
+                updateVarsDisplay();
+                stepBtn.removeAttribute('aria-busy');
+                stepBtn.innerHTML = 'Run &#x25b6;';
+                origFinally();
+            })
+            .catch(err => {
+                const statusEl = document.getElementById(`step-status-${i}`);
+                statusEl.innerHTML = '&#x2716;';
+                statusEl.style.color = '#ff4136';
+                document.getElementById(`step-result-${i}`).innerHTML =
+                    `<small style="color: #ff4136;">${escapeHtml(err.message)}</small>`;
+                stepBtn.removeAttribute('aria-busy');
+                stepBtn.innerHTML = 'Run &#x25b6;';
+                btn.removeAttribute('aria-busy');
+                btn.textContent = 'Run All';
+            });
+        });
+    }
+
+    btn.removeAttribute('aria-busy');
+    btn.textContent = 'Run All';
+}
+
+function resetDebugger() {
+    debugVars = {};
+    updateVarsDisplay();
+    document.getElementById('debugger-response').style.display = 'none';
+    debugSteps.forEach((_, i) => {
+        document.getElementById(`step-status-${i}`).innerHTML = '&#x25cb;';
+        document.getElementById(`step-status-${i}`).style.color = '';
+        document.getElementById(`step-result-${i}`).textContent = '';
+    });
+}
+
+function updateVarsDisplay() {
+    const varsDiv = document.getElementById('debugger-vars');
+    const content = document.getElementById('debugger-vars-content');
+    const keys = Object.keys(debugVars);
+    if (keys.length === 0) {
+        varsDiv.style.display = 'none';
+        return;
+    }
+    varsDiv.style.display = 'block';
+    let lines = [];
+    for (const [k, v] of Object.entries(debugVars)) {
+        const display = String(v).length > 80 ? String(v).substring(0, 80) + '...' : String(v);
+        lines.push(`${k}: ${display}`);
+    }
+    content.textContent = lines.join('\n');
+}
+
+// --- Notification Test ---
 function testNotification() {
     const chatId = document.getElementById('chat-id-input').value;
     const notifType = document.getElementById('notification-type').value;
@@ -425,82 +565,32 @@ function testNotification() {
         el.style.display = 'block';
         if (result.success) {
             content.textContent = 'Notification sent successfully!';
-            content.style.color = 'green';
+            content.style.color = '#2ecc40';
         } else {
             content.textContent = 'Error: ' + result.error;
-            content.style.color = 'red';
+            content.style.color = '#ff4136';
         }
     })
     .catch(err => {
         document.getElementById('notification-result').style.display = 'block';
         const content = document.getElementById('notification-result-content');
         content.textContent = 'Error: ' + err.message;
-        content.style.color = 'red';
+        content.style.color = '#ff4136';
     });
 }
 
-function enableButtons() {
-    document.getElementById('save-btn').removeAttribute('disabled');
-    document.getElementById('activate-btn').removeAttribute('disabled');
+// --- Utilities ---
+function confirmDelete() {
+    if (confirm('Are you sure you want to delete this item? This action cannot be undone.')) {
+        document.getElementById('delete-form').submit();
+    }
 }
 
-// --- cURL Import ---
-function importCurl() {
-    const raw = document.getElementById('curl-input').value.trim();
-    if (!raw) return;
-
-    let cmd = raw.replace(/\\\n/g, ' ').trim();
-    if (cmd.startsWith('curl ')) cmd = cmd.substring(5);
-
-    let method = 'GET';
-    let url = '';
-    let headers = {};
-    let body = '';
-
-    // Extract method
-    const methodMatch = cmd.match(/-X\s+(\w+)/);
-    if (methodMatch) method = methodMatch[1].toUpperCase();
-
-    // Extract headers
-    const headerRegex = /-H\s+['"](.*?)['"]/g;
-    let hm;
-    while ((hm = headerRegex.exec(cmd)) !== null) {
-        const colonIdx = hm[1].indexOf(':');
-        if (colonIdx > -1) {
-            headers[hm[1].substring(0, colonIdx).trim()] = hm[1].substring(colonIdx + 1).trim();
-        }
-    }
-
-    // Extract body
-    const bodyMatch = cmd.match(/(?:-d|--data|--data-raw)\s+['"](.*?)['"]/);
-    if (bodyMatch) {
-        body = bodyMatch[1];
-        if (!methodMatch) method = 'POST';
-    }
-
-    // Extract URL (quoted or unquoted)
-    const urlMatch = cmd.match(/(?:^|\s)['"]?(https?:\/\/[^\s'"]+)['"]?/);
-    if (urlMatch) url = urlMatch[1];
-
-    // Apply to form
-    if (url) document.querySelector('input[name="url"]').value = url;
-    document.getElementById('method-select').value = method;
-    toggleBodyField();
-    if (body) {
-        const bodyEl = document.querySelector('textarea[name="body"]');
-        if (bodyEl) bodyEl.value = body;
-    }
-
-    // Replace headers
-    document.getElementById('headers-container').innerHTML = '';
-    const entries = Object.entries(headers);
-    if (entries.length === 0) {
-        addHeaderRow('', '');
-    } else {
-        entries.forEach(([k, v]) => addHeaderRow(k, v));
-    }
-
-    document.getElementById('curl-input').value = '';
+function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML.replace(/"/g, '&quot;');
 }
 </script>
 {% endblock %}

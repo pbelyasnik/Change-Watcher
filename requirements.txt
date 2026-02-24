@@ -7,3 +7,4 @@ jsonpath-ng
 apscheduler
 python-dotenv
 tzdata
+pyyaml

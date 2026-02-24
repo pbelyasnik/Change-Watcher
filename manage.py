@@ -9,6 +9,7 @@ from db import get_db, init_db
 def print_usage():
     print("Usage:")
     print("  python manage.py init-db              Initialize the database")
+    print("  python manage.py reset-db             Drop all tables and reinitialize")
     print("  python manage.py add-code <code>       Add an access code")
     print("  python manage.py cleanup               Delete old logs and expired sessions")
 
@@ -17,6 +18,22 @@ def cmd_init_db():
     app = create_app()
     init_db(app)
     print("Database initialized.")
+
+
+def cmd_reset_db():
+    app = create_app()
+    with app.app_context():
+        db = get_db()
+        db.execute('PRAGMA foreign_keys = OFF')
+        tables = db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchall()
+        for table in tables:
+            db.execute(f'DROP TABLE IF EXISTS {table["name"]}')
+        db.commit()
+        db.execute('PRAGMA foreign_keys = ON')
+    init_db(app)
+    print("Database reset and reinitialized.")
 
 
 def cmd_add_code(code):
@@ -64,6 +81,8 @@ if __name__ == '__main__':
 
     if command == 'init-db':
         cmd_init_db()
+    elif command == 'reset-db':
+        cmd_reset_db()
     elif command == 'add-code':
         if len(sys.argv) < 3:
             print("Error: access code required")

@@ -64,3 +64,59 @@
 a[role="button"][href="/items"] {
     margin-bottom: var(--pico-spacing);
 }
+
+/* Debugger */
+.debugger-step {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.debugger-step:last-child {
+    border-bottom: none;
+}
+
+.step-status {
+    font-size: 1.1rem;
+    width: 1.2rem;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.step-badge {
+    font-size: 0.7rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.step-badge.auth {
+    background: #dfe6e9;
+    color: #636e72;
+}
+
+.step-badge.check {
+    background: #dff9fb;
+    color: #0984e3;
+}
+
+.step-result {
+    margin-left: auto;
+}
+
+/* Secrets toggle */
+.secret-toggle {
+    border: none !important;
+    background: none !important;
+    box-shadow: none !important;
+}
+
+/* YAML editor */
+#pipeline-yaml {
+    resize: vertical;
+    line-height: 1.5;
+}

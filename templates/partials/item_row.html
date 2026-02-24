@@ -14,7 +14,7 @@
         </span>
     </td>
     <td><a href="{{ url_for('items.item_edit', item_id=item.id) }}">{{ item.name }}</a></td>
-    <td><small>{{ item.url[:50] }}{% if item.url|length > 50 %}...{% endif %}</small></td>
+    <td><small>{% set url = item.check_url or '' %}{{ url[:50] }}{% if url|length > 50 %}...{% endif %}</small></td>
     <td><small class="utc-time" data-utc="{{ item.last_checked_at or '' }}">{{ item.last_checked_at or 'Never' }}</small></td>
     <td>
         <div class="action-buttons">
